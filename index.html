@@ -424,7 +424,21 @@ let allLogs=null;       // cache for ranking/dashboard
 function activeSchools(){return cfg.schools.filter(s=>s&&s.active!==false);}
 function schoolName(id){const s=cfg.schools.find(x=>x.id===id);return s?s.name:id;}
 /* ============ 서버 기록 전송 (Google Apps Script) ============ */
-const GAS_URL='https://script.google.com/macros/s/AKfycbw8WXVYGWuEtLpPOGAFZ6mn3k4Au_P5SWnvTn7G8g8otLp5UEbHbCWT7U_1fnqleIN5Kw/exec';
+/* ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+   3차 연구 전용 GAS URL — 새로 배포한 웹앱 주소를 아래 '' 안에 붙여넣으세요.
+   (예: const GAS_URL='https://script.google.com/macros/s/AKfy.../exec';)
+   비워 두면 기록이 서버로 가지 않고 폰 안에만 대기합니다.
+   ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★ */
+const GAS_URL='https://script.google.com/macros/s/AKfycbxaRpO7ZSs28P5nXLIvRcsWIZS6SD6rut8-V2ISejs74eYcV8lvGXvAYG9uHeFhTDKY6w/exec';
+/* ============ 반(組) 판정: QR 주소의 ?c=A / ?c=B 로 자동 고정 ============ */
+const CLASS_KEY='__t_tabi_class';
+function urlClass(){
+  try{ const m=(location.search+location.hash).match(/[?&#]c=([ABab])/); return m?m[1].toUpperCase():''; }
+  catch(e){ return ''; }
+}
+function savedClass(){ try{ return localStorage.getItem(CLASS_KEY)||''; }catch(e){ return ''; } }
+function setClass(c){ try{ if(c) localStorage.setItem(CLASS_KEY,c); }catch(e){} }
+function fixedClass(){ const u=urlClass(); if(u){ setClass(u); return u; } return savedClass(); }
 const Sync=(()=>{ 
   async function post(payload){
     if(!GAS_URL) return false;
@@ -447,7 +461,7 @@ const Sync=(()=>{
     if(!me) return;
     const payload=Object.assign({
       action:'record', week:weekStart(), date:todayKey(), ts:Date.now(),
-      school:schoolName(me.sc), dept:me.fac||'', sid:me.sid, name:me.nm||''
+      school:schoolName(me.sc), dept:me.fac||'', cls:(me.cls||fixedClass()||''), sid:me.sid, name:me.nm||''
     },rec);
     post(payload).then(ok=>{ if(!ok) queue(payload); });
   }
@@ -470,7 +484,7 @@ async function loadShared(){
 function myKey(){return 'log2-'+encodeURIComponent(me.sc)+'-'+encodeURIComponent(me.sid);}
 async function loadMyLog(){
   myLog=await sGet(myKey(),true);
-  if(!myLog) myLog={p:{sc:me.sc,fac:me.fac,sid:me.sid,nm:me.nm},plays:[],wr:{}};
+  if(!myLog) myLog={p:{sc:me.sc,fac:me.fac,cls:me.cls||'',sid:me.sid,nm:me.nm},plays:[],wr:{}};
   else myLog.p={sc:me.sc,fac:me.fac,sid:me.sid,nm:me.nm};
 }
 async function saveMyLog(){await sSet(myKey(),myLog,true);}
@@ -586,7 +600,7 @@ async function rLogin(){
     <h1>はじめよう!</h1>
     <p class="sub" style="font-weight:800;color:var(--teal-deep)">📖 ${esc(cfg.bookTitle)}</p>
     <p class="sub">最初に自分の情報を入れてね。次からはワンタップでOK。</p>
-    ${saved?`<div class="notice">前回：<b>${esc(schoolName(saved.sc))} ${esc(saved.fac||'')} ${esc(saved.sid)} ${esc(saved.nm||'')}</b>さん<br>
+    ${saved?`<div class="notice">前回：<b>${esc(schoolName(saved.sc))} ${esc(saved.fac||'')} ${esc(saved.cls?saved.cls+'組':'')} ${esc(saved.sid)} ${esc(saved.nm||'')}</b>さん<br>
       <div class="row" style="margin-top:8px">
         <button class="bp" id="quickIn">この情報で入る</button>
         <button class="bs" id="newIn">別の人が使う</button>
@@ -597,7 +611,14 @@ async function rLogin(){
         ${activeSchools().map(s=>`<button class="bs schoolBtn" data-id="${esc(s.id)}" style="flex:1 1 45%">${esc(s.name)}</button>`).join('')}
       </div>
       <label class="f">学部</label>
-      <input type="text" id="inFac" placeholder="例：文学部">
+      <input type="text" id="inFac" placeholder="例：国際文化学部">
+      <label class="f">クラス（組）</label>
+      ${urlClass()
+        ? `<div class="notice" style="margin:0 0 4px"><b>${esc(urlClass())}組</b>として登録されます（先生から配られたQR・リンクで自動設定）</div>`
+        : `<div class="row" id="classBtns">
+             <button class="bs classBtn" data-c="A" style="flex:1 1 45%">A組</button>
+             <button class="bs classBtn" data-c="B" style="flex:1 1 45%">B組</button>
+           </div>`}
       <label class="f">学籍番号</label>
       <input type="text" id="inSid" placeholder="例：24A1234" autocomplete="off">
       <label class="f">名前</label>
@@ -614,17 +635,26 @@ async function rLogin(){
       document.querySelectorAll('.schoolBtn').forEach(x=>x.className='bs schoolBtn');
       b.className='bp schoolBtn';});
   });
+  let pickedClass = fixedClass() || (saved&&saved.cls) || '';
+  document.querySelectorAll('.classBtn').forEach(b=>{
+    if(b.dataset.c===pickedClass)b.className='bp classBtn';
+    b.addEventListener('click',()=>{pickedClass=b.dataset.c;
+      document.querySelectorAll('.classBtn').forEach(x=>x.className='bs classBtn');
+      b.className='bp classBtn';});
+  });
   if(saved){
-    $('#quickIn').addEventListener('click',async()=>{me=saved;await enterHome();});
+    $('#quickIn').addEventListener('click',async()=>{me=Object.assign({},saved,{cls:(fixedClass()||saved.cls||'')});setClass(me.cls);await sSet('me2',me,false);await enterHome();});
     $('#newIn').addEventListener('click',()=>{$('#loginForm').classList.remove('hidden');$('#newIn').closest('.notice').classList.add('hidden');});
   }
   $('#loginGo').addEventListener('click',async()=>{
     const fac=$('#inFac').value.trim(),sid=$('#inSid').value.trim(),nm=$('#inName').value.trim();
     if(!pickedSchool){$('#loginErr').textContent='学校をえらんでね';return;}
     if(!fac){$('#loginErr').textContent='学部を入れてね';return;}
+    if(!pickedClass){$('#loginErr').textContent='クラス（A組・B組）をえらんでね';return;}
     if(!sid){$('#loginErr').textContent='学籍番号を入れてね';return;}
     if(!nm){$('#loginErr').textContent='名前を入れてね';return;}
-    me={sc:pickedSchool,fac,sid,nm};
+    setClass(pickedClass);
+    me={sc:pickedSchool,fac,cls:pickedClass,sid,nm};
     await sSet('me2',me,false);
     try{Sync.sendRecord({game:'login',level:'',lesson:'',score:'',retries:0,code:''});}catch(e){}
     await enterHome();
@@ -709,10 +739,10 @@ async function renderRanking(){
     }
   }
   if(cfg.classBattle){
-    const per={};mine.forEach(L=>{const k=L.p.fac||'(学部なし)';per[k]=(per[k]||0)+weekCount(L.plays,ws);});
+    const per={};mine.forEach(L=>{const k=(L.p.cls?L.p.cls+'組':'(クラスなし)');per[k]=(per[k]||0)+weekCount(L.plays,ws);});
     const keys=Object.keys(per).sort();const max=Math.max(1,...keys.map(k=>per[k]));
     const colors=['#2E7D6B','#2E5E7E','#C4453C','#D9A441','#7A5EA8','#4A8FB5'];
-    html+='<div class="eyebrow" style="margin-top:14px">学部対抗（今週の合計）</div>';
+    html+='<div class="eyebrow" style="margin-top:14px">クラス対抗（今週の合計）</div>';
     html+=keys.map((k,i)=>`<div style="font-size:12px;font-weight:800">${esc(k)} ${per[k]}回</div>
       <div class="battle-bar"><div style="width:${Math.round(per[k]/max*100)}%;background:${colors[i%colors.length]}"></div></div>`).join('');
   }
