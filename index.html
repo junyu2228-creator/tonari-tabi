@@ -721,9 +721,23 @@ async function rHome(){
   $('#logout').addEventListener('click',async()=>{me=null;go('login');});
   renderRanking();
 }
+async function fetchServerRank(){
+  if(!GAS_URL) return null;
+  try{
+    const cls=(me&&me.cls)||fixedClass()||'';
+    const u=GAS_URL+'?action=rank&cls='+encodeURIComponent(cls)+'&week='+encodeURIComponent(weekStart());
+    const res=await fetch(u);
+    if(!res.ok) return null;
+    const j=await res.json();
+    return (j&&j.ok)?j:null;
+  }catch(e){ return null; }
+}
 async function renderRanking(){
   const box=$('#rankCard'); if(!box)return;
   if(!cfg.showRanking&&!cfg.classBattle){box.classList.add('hidden');return;}
+  const srv=await fetchServerRank();
+  if(!$('#rankCard'))return;
+  if(srv){ renderRankingServer(srv); return; }
   const logs=await fetchAllLogs();
   if(!$('#rankCard'))return;
   const ws=weekStart();
@@ -743,6 +757,31 @@ async function renderRanking(){
   if(cfg.classBattle){
     const per={};mine.forEach(L=>{const k=(L.p.cls?clsLabel(L.p.cls):'(クラスなし)');per[k]=(per[k]||0)+weekCount(L.plays,ws);});
     const keys=Object.keys(per).sort();const max=Math.max(1,...keys.map(k=>per[k]));
+    const colors=['#2E7D6B','#2E5E7E','#C4453C','#D9A441','#7A5EA8','#4A8FB5'];
+    html+='<div class="eyebrow" style="margin-top:14px">クラス対抗（今週の合計）</div>';
+    html+=keys.map((k,i)=>`<div style="font-size:12px;font-weight:800">${esc(k)} ${per[k]}回</div>
+      <div class="battle-bar"><div style="width:${Math.round(per[k]/max*100)}%;background:${colors[i%colors.length]}"></div></div>`).join('');
+  }
+  box.innerHTML=html||'';
+}
+function renderRankingServer(j){
+  const box=$('#rankCard'); if(!box)return;
+  const rows=j.rows||[]; let html='';
+  const myIdx=rows.findIndex(r=>String(r.sid)===String(me.sid));
+  const nm=r=>(cfg.nameMode==='full'?(r.name||r.sid):r.sid);
+  if(cfg.showRanking){
+    const title=(me&&me.cls)?clsLabel(me.cls):schoolName(me.sc);
+    html+=`<div class="eyebrow">今週のランキング · ${esc(title)}</div>`;
+    if(!rows.length) html+='<p class="sub">今週はまだ誰もクリアしていません。1位のチャンス！</p>';
+    else{
+      html+=rows.slice(0,5).map((r,i)=>`<div class="rank-row ${i===myIdx?'me':''}"><span class="pos">${i+1}位</span><span class="nm">${esc(nm(r))}</span><span class="ct">${r.n}回</span></div>`).join('');
+      if(myIdx>=5) html+=`<div class="rank-row me"><span class="pos">${myIdx+1}位</span><span class="nm">${esc(nm(rows[myIdx]))}（自分）</span><span class="ct">${rows[myIdx].n}回</span></div>`;
+      else if(myIdx<0) html+=`<div class="rank-row me"><span class="pos">—</span><span class="nm">自分</span><span class="ct">今週0回 · クリアで参戦！</span></div>`;
+    }
+  }
+  if(cfg.classBattle&&j.battle){
+    const per={}; Object.keys(j.battle).forEach(k=>{ per[k==='-'?'(クラスなし)':clsLabel(k)]=j.battle[k]; });
+    const keys=Object.keys(per).sort(); const max=Math.max(1,...keys.map(k=>per[k]));
     const colors=['#2E7D6B','#2E5E7E','#C4453C','#D9A441','#7A5EA8','#4A8FB5'];
     html+='<div class="eyebrow" style="margin-top:14px">クラス対抗（今週の合計）</div>';
     html+=keys.map((k,i)=>`<div style="font-size:12px;font-weight:800">${esc(k)} ${per[k]}回</div>
