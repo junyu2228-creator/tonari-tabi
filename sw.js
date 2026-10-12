@@ -5,7 +5,7 @@
    - script.google.com(GAS 기록 API)은 절대 캐시하지 않고 그대로 통과
    - 앱을 갱신할 때는 아래 VERSION 숫자만 올리면 됨
 */
-const VERSION = 'tango-tabi-v4';
+const VERSION = 'tango-tabi-v5';
 const SHELL = [
   './',
   './index.html',

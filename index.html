@@ -433,10 +433,11 @@ const GAS_URL='https://script.google.com/macros/s/AKfycbxaRpO7ZSs28P5nXLIvRcsWIZ
 /* ============ 반(組) 판정: QR 주소의 ?c=A / ?c=B 로 자동 고정 ============ */
 const CLASS_KEY='__t_tabi_class';
 function urlClass(){
-  try{ const m=(location.search+location.hash).match(/[?&#]c=([ABab])/); return m?m[1].toUpperCase():''; }
+  try{ const m=(location.search+location.hash).match(/[?&#]c=([ABNabn])/); return m?m[1].toUpperCase():''; }
   catch(e){ return ''; }
 }
 function savedClass(){ try{ return localStorage.getItem(CLASS_KEY)||''; }catch(e){ return ''; } }
+function clsLabel(c){ return c==='N' ? '看護クラス' : (c ? c+'組' : ''); }
 function setClass(c){ try{ if(c) localStorage.setItem(CLASS_KEY,c); }catch(e){} }
 function fixedClass(){ const u=urlClass(); if(u){ setClass(u); return u; } return savedClass(); }
 const Sync=(()=>{ 
@@ -600,7 +601,7 @@ async function rLogin(){
     <h1>はじめよう!</h1>
     <p class="sub" style="font-weight:800;color:var(--teal-deep)">📖 ${esc(cfg.bookTitle)}</p>
     <p class="sub">最初に自分の情報を入れてね。次からはワンタップでOK。</p>
-    ${saved?`<div class="notice">前回：<b>${esc(schoolName(saved.sc))} ${esc(saved.fac||'')} ${esc(saved.cls?saved.cls+'組':'')} ${esc(saved.sid)} ${esc(saved.nm||'')}</b>さん<br>
+    ${saved?`<div class="notice">前回：<b>${esc(schoolName(saved.sc))} ${esc(saved.fac||'')} ${esc(clsLabel(saved.cls||''))} ${esc(saved.sid)} ${esc(saved.nm||'')}</b>さん<br>
       <div class="row" style="margin-top:8px">
         <button class="bp" id="quickIn">この情報で入る</button>
         <button class="bs" id="newIn">別の人が使う</button>
@@ -614,10 +615,11 @@ async function rLogin(){
       <input type="text" id="inFac" placeholder="例：国際文化学部">
       <label class="f">クラス（組）</label>
       ${urlClass()
-        ? `<div class="notice" style="margin:0 0 4px"><b>${esc(urlClass())}組</b>として登録されます（先生から配られたQR・リンクで自動設定）</div>`
-        : `<div class="row" id="classBtns">
-             <button class="bs classBtn" data-c="A" style="flex:1 1 45%">A組</button>
-             <button class="bs classBtn" data-c="B" style="flex:1 1 45%">B組</button>
+        ? `<div class="notice" style="margin:0 0 4px"><b>${esc(clsLabel(urlClass()))}</b>として登録されます（先生から配られたQR・リンクで自動設定）</div>`
+        : `<div class="row" id="classBtns" style="flex-wrap:wrap">
+             <button class="bs classBtn" data-c="A" style="flex:1 1 30%">A組</button>
+             <button class="bs classBtn" data-c="B" style="flex:1 1 30%">B組</button>
+             <button class="bs classBtn" data-c="N" style="flex:1 1 30%">看護</button>
            </div>`}
       <label class="f">学籍番号</label>
       <input type="text" id="inSid" placeholder="例：24A1234" autocomplete="off">
@@ -650,7 +652,7 @@ async function rLogin(){
     const fac=$('#inFac').value.trim(),sid=$('#inSid').value.trim(),nm=$('#inName').value.trim();
     if(!pickedSchool){$('#loginErr').textContent='学校をえらんでね';return;}
     if(!fac){$('#loginErr').textContent='学部を入れてね';return;}
-    if(!pickedClass){$('#loginErr').textContent='クラス（A組・B組）をえらんでね';return;}
+    if(!pickedClass){$('#loginErr').textContent='クラスをえらんでね';return;}
     if(!sid){$('#loginErr').textContent='学籍番号を入れてね';return;}
     if(!nm){$('#loginErr').textContent='名前を入れてね';return;}
     setClass(pickedClass);
@@ -739,7 +741,7 @@ async function renderRanking(){
     }
   }
   if(cfg.classBattle){
-    const per={};mine.forEach(L=>{const k=(L.p.cls?L.p.cls+'組':'(クラスなし)');per[k]=(per[k]||0)+weekCount(L.plays,ws);});
+    const per={};mine.forEach(L=>{const k=(L.p.cls?clsLabel(L.p.cls):'(クラスなし)');per[k]=(per[k]||0)+weekCount(L.plays,ws);});
     const keys=Object.keys(per).sort();const max=Math.max(1,...keys.map(k=>per[k]));
     const colors=['#2E7D6B','#2E5E7E','#C4453C','#D9A441','#7A5EA8','#4A8FB5'];
     html+='<div class="eyebrow" style="margin-top:14px">クラス対抗（今週の合計）</div>';
