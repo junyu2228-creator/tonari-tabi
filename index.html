@@ -391,7 +391,9 @@ let storageOk=true;
 let localMode=false;
 const __WS=(typeof window!=='undefined'&&window.storage&&window.storage.get)?window.storage:null;
 let __LS=false;try{localStorage.setItem('__t_tabi','1');localStorage.removeItem('__t_tabi');__LS=true;}catch(e){}
-if(!__WS&&__LS)localMode=true;
+/* localMode は「先生に記録が届かない状態」だけを指す。
+   記録は GAS へ送っているので、送信先が無いか file:// で開いたときだけ true。
+   （判定は GAS_URL の定義後に行う → setLocalMode()） */
 function __k(k,shared){return 'ws'+(shared?'S:':'P:')+k;}
 async function sGet(k,shared){
   if(__WS){try{const r=await __WS.get(k,!!shared);return r?JSON.parse(r.value):null;}catch(e){return null;}}
@@ -413,7 +415,7 @@ async function sDel(k,shared){
   return false;}
 
 /* ============ global state ============ */
-const DEFAULT_CFG={notice:'',hw:{on:false,lesson:'',mode:'',game:'',n:1,note:''},appName:'単語スタンプ',shareMsg:'この画面をスクショして保存しよう📸',matchPairs:8,reviewCount:20,wrongCount:12,games:{flash:true,match:true,listen:true,mean:true,type:true},bookTitle:'隣の旅「韓国語」',schools:[{id:'s1',name:'長崎県立大学',active:true},{id:'s2',name:'活水女子大学',active:true}],pin:'1234',showRanking:true,nameMode:'full',
+const DEFAULT_CFG={notice:'',hw:{on:false,lesson:'',mode:'',game:'',n:1,note:''},appName:'単語スタンプ',shareMsg:'この画面をスクショして保存しよう📸',matchPairs:8,reviewCount:20,wrongCount:12,games:{flash:true,match:true,listen:true,mean:true,type:true},bookTitle:'隣の旅「韓国語」',schools:[{id:'s1',name:'長崎県立大学',active:true},{id:'s2',name:'活水女子大学',active:true}],pin:'1234',showRanking:true,nameMode:'sid',
   classBattle:false,dailyCap:5,stampN:3,goldN:5,reviewMax:'22과',setSize:12};
 let cfg=JSON.parse(JSON.stringify(DEFAULT_CFG));
 let wordsOv={tags:{},edits:{},del:[],add:{},lessons:{ren:{},hidden:[],custom:[]},sents:{add:{},del:[],edits:{}},conj:{add:[],del:[],edits:{}}};   // teacher overrides (shared)
@@ -430,6 +432,14 @@ function schoolName(id){const s=cfg.schools.find(x=>x.id===id);return s?s.name:i
    비워 두면 기록이 서버로 가지 않고 폰 안에만 대기합니다.
    ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★ */
 const GAS_URL='https://script.google.com/macros/s/AKfycbxaRpO7ZSs28P5nXLIvRcsWIZS6SD6rut8-V2ISejs74eYcV8lvGXvAYG9uHeFhTDKY6w/exec';
+/* 記録が先生に届かない状態かどうかを判定する。
+   GAS_URL があり、http(s) で開いていれば通常モード（＝先生に届く）。 */
+function setLocalMode(){
+  var isFile=false;
+  try{ isFile=(location.protocol==='file:'); }catch(e){}
+  localMode = (!GAS_URL) || isFile;
+}
+setLocalMode();
 /* ============ 반(組) 판정: QR 주소의 ?c=A / ?c=B 로 자동 고정 ============ */
 const CLASS_KEY='__t_tabi_class';
 function urlClass(){
